@@ -79,3 +79,61 @@ def get_order_status():
     
     orders = db_service.get_order_status(phone_number)
     return jsonify(orders)
+
+
+@chat_bp.route('/notify-status', methods=['POST'])
+def notify_order_status():
+    """Send WhatsApp notification when order status changes"""
+    from services import SupabaseService
+    
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    order_id = data.get('order_id')
+    
+    if not order_id:
+        return jsonify({'error': 'order_id is required'}), 400
+    
+    db_service = SupabaseService()
+    
+    # Fetch order details
+    order_response = db_service.supabase.table('orders').select('*').eq('order_id', order_id).single().execute()
+    
+    if not order_response.data:
+        return jsonify({'error': 'Order not found'}), 404
+    
+    order = order_response.data
+    phone_number = order.get('customer_phone_number')
+    status = order.get('status')
+    
+    if not phone_number:
+        return jsonify({'error': 'No phone number for this order'}), 400
+    
+    # Format items
+    items_dict = order.get('items', {})
+    items_list = []
+    for item_id, quantity in items_dict.items():
+        menu_item = db_service.supabase.table('menu').select('name').eq('item_id', int(item_id)).execute()
+        if menu_item.data:
+            items_list.append(f"{menu_item.data[0]['name']} x{quantity}")
+    
+    items_text = ', '.join(items_list) if items_list else 'your items'
+    
+    # Create message based on status
+    if status == 'ON_ROUTE':
+        message = f"🚗 Your order #{order_id} ({items_text}) is on route to {order.get('delivery_address')}! It will arrive shortly."
+    elif status == 'DELIVERED':
+        message = f"✅ Your order #{order_id} has been delivered! Enjoy your food! 😊"
+    else:
+        message = f"📦 Your order #{order_id} status has been updated to {status}."
+    
+    # Send WhatsApp message
+    try:
+        whatsapp_service.send_message(phone_number, message)
+        print(f"✅ Status notification sent to {phone_number}")
+        return jsonify({'message': 'Notification sent successfully'}), 200
+    except Exception as e:
+        print(f"❌ WhatsApp error: {e}")
+        return jsonify({'error': str(e)}), 500
