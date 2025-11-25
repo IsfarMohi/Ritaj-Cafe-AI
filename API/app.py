@@ -1,8 +1,10 @@
 import logging
 from flask import Flask, jsonify
+from flask_cors import CORS
 from controllers import chat_bp, call_bp
 
 app = Flask(__name__)
+CORS(app)
 
 app.register_blueprint(chat_bp)
 app.register_blueprint(call_bp)

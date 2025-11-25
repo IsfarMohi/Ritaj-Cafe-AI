@@ -117,17 +117,21 @@ def notify_order_status():
     for item_id, quantity in items_dict.items():
         menu_item = db_service.supabase.table('menu').select('name').eq('item_id', int(item_id)).execute()
         if menu_item.data:
-            items_list.append(f"{menu_item.data[0]['name']} x{quantity}")
+            item_name = menu_item.data[0]['name']
+            if quantity > 1:
+                items_list.append(f"{item_name} x{quantity}")
+            else:
+                items_list.append(item_name)
     
-    items_text = ', '.join(items_list) if items_list else 'your items'
+    items_text = ', '.join(items_list) if items_list else 'your order'
     
     # Create message based on status
     if status == 'ON_ROUTE':
-        message = f"🚗 Your order #{order_id} ({items_text}) is on route to {order.get('delivery_address')}! It will arrive shortly."
+        message = f"Your order of {items_text} is on route to {order.get('delivery_address')}. It will arrive shortly."
     elif status == 'DELIVERED':
-        message = f"✅ Your order #{order_id} has been delivered! Enjoy your food! 😊"
+        message = f"Your order of {items_text} has been delivered. Enjoy your food!"
     else:
-        message = f"📦 Your order #{order_id} status has been updated to {status}."
+        message = f"Your order of {items_text} status has been updated to {status}."
     
     # Send WhatsApp message
     try:
